@@ -23,9 +23,18 @@ All records are synthetic fixtures. No real client, worker, payroll, or document
 | Worker Buddy | Active, day 1 of 60 |
 | Initial case state | No open case |
 
-The same scenario must be viewable through the role switcher as worker, operations/coordinator, and owner.
+The same scenario must be viewable through the role switcher as Worker Preview, Coordinator, HR / Administration, and Boss Control Tower.
 
-## 3. Mandatory primary flow
+## 3. Four-branch responsibility map
+
+| Branch | Owns | Does not own |
+| --- | --- | --- |
+| Boss | Agency-wide status, escalations, decisions, client impact | Daily HR edits or worker scheduling details |
+| HR / Administration | Candidates, workers, companies, documents, payroll preview, leave review | Coordinator case resolution |
+| Coordinator | Planning, messenger, Buddy cases, attendance and worker coverage | Payroll approval, termination, HR record changes |
+| Worker Preview | Read planning, acknowledge, message human, use Buddy, important numbers | Schedule changes, leave approval, payroll or agency data |
+
+## 4. Mandatory primary flow
 
 ### Step 1 — Worker opens the first-day view
 
@@ -79,7 +88,7 @@ The worker sees a case identifier and an open status. The coordinator sees one s
 
 ### Step 4 — Coordinator resolves the case
 
-Operations Workspace provides a real demo action:
+Coordinator Workspace provides a real demo action:
 
 ```text
 Confirm transport solution
@@ -100,7 +109,7 @@ The worker can acknowledge the update or request a human. The status remains vis
 
 ### Step 6 — Owner sees operational impact
 
-Owner Control Tower updates:
+Boss Control Tower updates:
 
 - open transport cases: `1 → 0`;
 - resolved cases today: `+1`;
@@ -149,9 +158,10 @@ Sensitive categories such as health, pay, and conflict must route to a human que
 
 | Role | Entry point | Proof visible |
 | --- | --- | --- |
-| Worker | `/{locale}/worker` | Shift, Buddy, case status, language |
-| Coordinator | `/{locale}/operations` | Structured queue, severity, resolution action |
-| Owner | `/{locale}/owner` | KPIs, activity, client impact |
+| Worker Preview | `/{locale}/worker` | Planning, Buddy, messenger, numbers, case status |
+| Coordinator | `/{locale}/coordinator` | Planning, messenger queue, structured cases, resolution action |
+| HR / Administration | `/{locale}/operations` | People, companies, documents, payroll preview, leave and inbox |
+| Boss | `/{locale}/owner` | KPIs, hierarchy, escalations, decisions and client impact |
 | Demo controller | `/{locale}/demo` | Reset fixtures, switch role, run scenario |
 
 The demo controller is a presentation utility and must be clearly labeled. It is not a production admin surface.
@@ -169,7 +179,10 @@ The controller can reset the scenario to its seed state. Reset is explicit and m
 - [ ] A structured case appears in the coordinator queue.
 - [ ] Coordinator can resolve it with a confirmed action.
 - [ ] Worker sees the updated status.
-- [ ] Owner sees the KPI and activity change.
+- [ ] Worker can acknowledge planning and send a messenger message.
+- [ ] Coordinator sees the message and planning update.
+- [ ] HR sees the structured operational record.
+- [ ] Boss sees the KPI and activity change.
 - [ ] Absence/coverage branch is testable from seeded state.
 - [ ] Human-contact action is always visible.
 - [ ] Mobile layout is usable for Worker App.

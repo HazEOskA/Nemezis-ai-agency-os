@@ -1,14 +1,18 @@
 'use client';
 
 import {useEffect, useState} from 'react';
+import type {FormEvent} from 'react';
 import {useLocale, useTranslations} from 'next-intl';
 import {useRouter} from 'next/navigation';
 import {demoWorker} from '../lib/demo-data';
 import type {DemoState} from '../lib/demo-store';
+import BossSurface, {BossNav, type BossModule} from './boss-surface';
+import CoordinatorSurface, {CoordinatorNav, type CoordinatorModule} from './coordinator-surface';
 import HRAdminSurface, {HRAdminNav, type HRModule} from './hr-admin-surface';
 
-type Role = 'worker' | 'operations' | 'owner';
+type Role = 'worker' | 'coordinator' | 'operations' | 'owner';
 type CaseState = 'idle' | 'confirming' | 'open' | 'resolved';
+type PendingAction = 'create' | 'resolve' | 'reset' | 'message' | 'planning' | null;
 
 async function readDemoState() {
   const response = await fetch('/api/demo/state', {cache: 'no-store'});
@@ -77,21 +81,23 @@ function PlusIcon() {
 }
 
 function RoleIcon({role}: {role: Role}) {
-  return <span className={`role-icon role-icon-${role}`} aria-hidden="true">{role === 'worker' ? 'W' : role === 'operations' ? 'O' : 'T'}</span>;
+  return <span className={`role-icon role-icon-${role}`} aria-hidden="true">{role === 'worker' ? 'W' : role === 'coordinator' ? 'C' : role === 'operations' ? 'H' : 'B'}</span>;
 }
 
 export default function DemoApp() {
   const t = useTranslations();
   const locale = useLocale();
   const router = useRouter();
-  const [role, setRole] = useState<Role>('operations');
+  const [role, setRole] = useState<Role>('owner');
   const [hrModule, setHrModule] = useState<HRModule>('dashboard');
+  const [coordinatorModule, setCoordinatorModule] = useState<CoordinatorModule>('dashboard');
+  const [bossModule, setBossModule] = useState<BossModule>('dashboard');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [demoState, setDemoState] = useState<DemoState | null>(null);
   const [buddyStep, setBuddyStep] = useState<'idle' | 'confirming'>('idle');
   const [contactSent, setContactSent] = useState(false);
   const [controllerOpen, setControllerOpen] = useState(false);
-  const [actionPending, setActionPending] = useState<'create' | 'resolve' | 'reset' | null>(null);
+  const [actionPending, setActionPending] = useState<PendingAction>(null);
   const [apiError, setApiError] = useState<string | null>(null);
 
   const switchRole = (nextRole: Role) => {
@@ -144,6 +150,34 @@ export default function DemoApp() {
     }
   };
 
+  const sendAgencyMessage = async (input: {body: string; actor: 'worker' | 'coordinator'; recipient: string; recipientRole: 'worker' | 'coordinator'}) => {
+    setActionPending('message');
+    setApiError(null);
+    try {
+      const nextState = await mutateDemoState('/api/demo/messages', input);
+      setDemoState(nextState);
+    } catch (error: unknown) {
+      console.error('[Demo] Failed to send messenger message', error);
+      setApiError(t('demoApiError'));
+    } finally {
+      setActionPending(null);
+    }
+  };
+
+  const acknowledgePlanning = async (shiftId: string) => {
+    setActionPending('planning');
+    setApiError(null);
+    try {
+      const nextState = await mutateDemoState('/api/demo/planning/ack', {shiftId, confirmed: true});
+      setDemoState(nextState);
+    } catch (error: unknown) {
+      console.error('[Demo] Failed to acknowledge planning', error);
+      setApiError(t('demoApiError'));
+    } finally {
+      setActionPending(null);
+    }
+  };
+
   const resetDemo = async () => {
     setActionPending('reset');
     setApiError(null);
@@ -152,8 +186,10 @@ export default function DemoApp() {
       setDemoState(nextState);
       setBuddyStep('idle');
       setContactSent(false);
-      setRole('operations');
+      setRole('owner');
       setHrModule('dashboard');
+      setCoordinatorModule('dashboard');
+      setBossModule('dashboard');
       setMobileNavOpen(false);
     } catch (error: unknown) {
       console.error('[Demo] Failed to reset demo', error);
@@ -202,6 +238,22 @@ export default function DemoApp() {
                 setMobileNavOpen(false);
               }}
             />
+          ) : role === 'coordinator' ? (
+            <CoordinatorNav
+              active={coordinatorModule}
+              onChange={(nextModule) => {
+                setCoordinatorModule(nextModule);
+                setMobileNavOpen(false);
+              }}
+            />
+          ) : role === 'owner' ? (
+            <BossNav
+              active={bossModule}
+              onChange={(nextModule) => {
+                setBossModule(nextModule);
+                setMobileNavOpen(false);
+              }}
+            />
           ) : (
             <>
               <button className="nav-item nav-item-active" type="button">
@@ -217,16 +269,24 @@ export default function DemoApp() {
                 <span>{t('buddy')}</span>
                 <span className="nav-count">1</span>
               </button>
-              <button className="nav-item" type="button" onClick={() => switchRole('operations')}>
-                <span className="nav-glyph">▤</span>
-                <span>{t('cases')}</span>
+              <button className="nav-item" type="button" onClick={() => switchRole('coordinator')}>
+                <span className="nav-glyph">✉</span>
+                <span>Messenger</span>
                 {caseIsOpen && <span className="nav-count nav-count-alert">1</span>}
               </button>
-              <button className="nav-item" type="button" onClick={() => switchRole('operations')}>
-                <span className="nav-glyph">◎</span>
-                <span>{t('team')}</span>
+              <button className="nav-item" type="button" onClick={() => switchRole('coordinator')}>
+                <span className="nav-glyph">▦</span>
+                <span>Planning</span>
               </button>
               <div className="side-divider" />
+              <button className="nav-item" type="button" onClick={() => switchRole('coordinator')}>
+                <span className="nav-glyph">♧</span>
+                <span>{t('coordinatorRole')}</span>
+              </button>
+              <button className="nav-item" type="button" onClick={() => switchRole('operations')}>
+                <span className="nav-glyph">⌁</span>
+                <span>{t('operationsRole')}</span>
+              </button>
               <button className="nav-item" type="button" onClick={() => switchRole('owner')}>
                 <span className="nav-glyph">⌁</span>
                 <span>{t('ownerView')}</span>
@@ -241,10 +301,10 @@ export default function DemoApp() {
 
         <div className="sidebar-footer">
           <div className="human-card">
-            <div className="human-avatar">{role === 'operations' ? 'LB' : 'AN'}</div>
+            <div className="human-avatar">{role === 'owner' || role === 'operations' ? 'LB' : 'AN'}</div>
             <div className="human-copy">
-              <strong>{role === 'operations' ? 'Linda van den Berg' : demoWorker.coordinator}</strong>
-              <span>{role === 'operations' ? 'HR / Office Manager' : t('coordinator')}</span>
+              <strong>{role === 'owner' || role === 'operations' ? 'Linda van den Berg' : demoWorker.coordinator}</strong>
+              <span>{role === 'owner' ? 'Boss / Owner' : role === 'operations' ? 'HR / Office Manager' : t('coordinator')}</span>
             </div>
             <span className="online-indicator" aria-label="Online" />
           </div>
@@ -262,10 +322,10 @@ export default function DemoApp() {
           <div className="topbar-context">
             <span className="topbar-kicker">NEMEZISAI / DEMO</span>
             <span className="topbar-separator">/</span>
-            <span className="topbar-current">{role === 'worker' ? t('workerRole') : role === 'operations' ? t('operationsRole') : t('ownerRole')}</span>
+            <span className="topbar-current">{role === 'worker' ? t('workerRole') : role === 'coordinator' ? t('coordinatorRole') : role === 'operations' ? t('operationsRole') : t('ownerRole')}</span>
           </div>
           <div className="topbar-actions">
-            <button className="notification-button" type="button" onClick={() => {switchRole('operations'); setHrModule('inbox');}} aria-label="Open notifications"><span>♧</span><i /></button>
+            <button className="notification-button" type="button" onClick={() => {switchRole('coordinator'); setCoordinatorModule('messenger');}} aria-label="Open notifications"><span>♧</span><i /></button>
             <div className="role-switcher" aria-label={t('roleLabel')}>
               <button className={role === 'worker' ? 'role-button role-button-active' : 'role-button'} type="button" onClick={() => switchRole('worker')}>
                 <RoleIcon role="worker" />
@@ -274,6 +334,10 @@ export default function DemoApp() {
               <button className={role === 'operations' ? 'role-button role-button-active' : 'role-button'} type="button" onClick={() => switchRole('operations')}>
                 <RoleIcon role="operations" />
                 <span>{t('operationsRole')}</span>
+              </button>
+              <button className={role === 'coordinator' ? 'role-button role-button-active' : 'role-button'} type="button" onClick={() => switchRole('coordinator')}>
+                <RoleIcon role="coordinator" />
+                <span>{t('coordinatorRole')}</span>
               </button>
               <button className={role === 'owner' ? 'role-button role-button-active' : 'role-button'} type="button" onClick={() => switchRole('owner')}>
                 <RoleIcon role="owner" />
@@ -286,7 +350,7 @@ export default function DemoApp() {
                 {locales.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </label>
-            <div className="topbar-avatar">{role === 'operations' ? 'LB' : 'OS'}</div>
+            <div className="topbar-avatar">{role === 'owner' || role === 'operations' ? 'LB' : role === 'coordinator' ? 'AN' : 'OS'}</div>
           </div>
         </header>
 
@@ -310,11 +374,15 @@ export default function DemoApp() {
           {role === 'worker' && (
             <WorkerSurface
               t={t}
+              state={demoState}
               caseState={caseState}
               onTransportProblem={openTransportConfirmation}
               onCreateCase={createTransportCase}
               onCancel={() => setBuddyStep('idle')}
               onContact={() => setContactSent(true)}
+              onSendMessage={sendAgencyMessage}
+              onAcknowledgePlanning={acknowledgePlanning}
+              actionPending={actionPending}
             />
           )}
           {role === 'operations' && (
@@ -327,7 +395,29 @@ export default function DemoApp() {
               actionPending={actionPending}
             />
           )}
-          {role === 'owner' && <OwnerSurface t={t} state={demoState} onReset={resetDemo} />}
+          {role === 'owner' && (
+            <BossSurface
+              t={t}
+              state={demoState}
+              activeModule={bossModule}
+              onModuleChange={setBossModule}
+              onReset={resetDemo}
+              actionPending={actionPending}
+            />
+          )}
+          {role === 'coordinator' && (
+            <CoordinatorSurface
+              t={t}
+              state={demoState}
+              activeModule={coordinatorModule}
+              onModuleChange={setCoordinatorModule}
+              onReset={resetDemo}
+              onResolve={resolveTransport}
+              onAcknowledge={acknowledgePlanning}
+              onSendMessage={sendAgencyMessage}
+              actionPending={actionPending}
+            />
+          )}
 
           <button className="controller-toggle" type="button" onClick={() => setControllerOpen((open) => !open)}>
             <span className="controller-pulse" />
@@ -351,18 +441,26 @@ export default function DemoApp() {
 
 function WorkerSurface({
   t,
+  state,
   caseState,
   onTransportProblem,
   onCreateCase,
   onCancel,
-  onContact
+  onContact,
+  onSendMessage,
+  onAcknowledgePlanning,
+  actionPending
 }: {
   t: ReturnType<typeof useTranslations>;
+  state: DemoState | null;
   caseState: CaseState;
   onTransportProblem: () => void;
   onCreateCase: () => void;
   onCancel: () => void;
   onContact: () => void;
+  onSendMessage: (input: {body: string; actor: 'worker'; recipient: string; recipientRole: 'coordinator'}) => void | Promise<void>;
+  onAcknowledgePlanning: (shiftId: string) => void | Promise<void>;
+  actionPending: PendingAction;
 }) {
   const isConfirming = caseState === 'confirming';
   const isOpen = caseState === 'open';
@@ -457,8 +555,23 @@ function WorkerSurface({
           <button className="icon-button" type="button" onClick={onContact} aria-label={t('humanHelp')}>→</button>
         </div>
       </section>
+
+      {state ? <WorkerSupport state={state} onSendMessage={onSendMessage} onAcknowledgePlanning={onAcknowledgePlanning} onContact={onContact} actionPending={actionPending} /> : null}
     </>
   );
+}
+
+function WorkerSupport({state, onSendMessage, onAcknowledgePlanning, onContact, actionPending}: {state: DemoState; onSendMessage: (input: {body: string; actor: 'worker'; recipient: string; recipientRole: 'coordinator'}) => void | Promise<void>; onAcknowledgePlanning: (shiftId: string) => void | Promise<void>; onContact: () => void; actionPending: PendingAction}) {
+  const [draft, setDraft] = useState('');
+  const nextShift = state.shared.planning.find((shift) => shift.workerId === 'worker-mila' && shift.date === '2026-07-01') || state.shared.planning[0];
+  const messages = state.shared.messenger.filter((message) => message.threadId === 'thread-mila-anna').slice(-3);
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!draft.trim()) return;
+    void onSendMessage({body: draft, actor: 'worker', recipient: 'Anna Nowak', recipientRole: 'coordinator'});
+    setDraft('');
+  };
+  return <section className="worker-support-grid"><div className="worker-support-card"><div className="worker-support-heading"><div><span className="eyebrow">PLANNING</span><h2>Your next assignments</h2></div><span className="worker-read-only">Preview</span></div><div className="worker-next-shift"><strong>{nextShift.dateLabel}</strong><b>{nextShift.start}–{nextShift.end}</b><span>{nextShift.client} · {nextShift.location}</span><small>{nextShift.transport}</small></div>{nextShift.acknowledged ? <div className="worker-confirmed"><StatusDot tone="mint" /> You acknowledged this assignment</div> : <button className="button button-primary" type="button" onClick={() => onAcknowledgePlanning(nextShift.id)} disabled={actionPending === 'planning'}>I understand this planning</button>}</div><div className="worker-support-card"><div className="worker-support-heading"><div><span className="eyebrow">MESSENGER</span><h2>Anna · your coordinator</h2></div><span className="active-pill"><StatusDot /> Online</span></div><div className="worker-mini-messages">{messages.map((message) => <div className={message.senderRole === 'worker' ? 'worker-mini-message worker-mini-message-mine' : 'worker-mini-message'} key={message.id}><small>{message.sender} · {message.time}</small><span>{message.body}</span></div>)}</div><form className="worker-message-form" onSubmit={submit}><input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Write to Anna…" aria-label="Write to your coordinator" /><button className="button button-primary" type="submit" disabled={actionPending === 'message'}>Send</button></form><button className="button button-ghost worker-human-button" type="button" onClick={onContact}>Contact a human</button></div><div className="worker-support-card worker-numbers-card"><div className="worker-support-heading"><div><span className="eyebrow">IMPORTANT NUMBERS</span><h2>Help when you need it</h2></div><span className="worker-read-only">Always visible</span></div><div className="worker-number-list">{state.shared.importantNumbers.slice(0, 4).map((number) => <a href={`tel:${number.number.replace(/[^+\d]/g, '')}`} key={number.id}><span className={`worker-number-icon worker-number-icon-${number.tone}`}>☎</span><span><strong>{number.label}</strong><b>{number.number}</b><small>{number.availability}</small></span></a>)}</div></div></section>;
 }
 
 function OperationsSurface({

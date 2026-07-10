@@ -102,7 +102,7 @@ Required keys include role labels, shift details, transport prompt, human-contac
 - [ ] AI disclosure and human-contact action are present.
 - [ ] Long translations do not break mobile layouts.
 - [ ] Pluralization and interpolation placeholders are preserved.
-- [ ] The locale is tested in Worker App, Operations Workspace, and Owner Control Tower.
+- [ ] The locale is tested in Worker Preview, Coordinator Workspace, HR / Administration, and Boss Control Tower.
 
 ## 6. Validation command contract
 

@@ -10,10 +10,13 @@ NemezisAI Agency OS is a premium operational platform for staffing agencies. The
 
 Control Desk remains an external reference for visual language and reusable ideas. NemezisAI is a separate repository with its own history, contracts, demo data, tests, and deployment lifecycle.
 
-The demo must prove one connected operational loop across three surfaces:
+The demo must prove one connected operational loop across four controlled branches:
 
 ```text
-Worker App → Operations Workspace → Owner Control Tower
+Boss Control Tower
+  → HR / Administration
+    → Coordinator Workspace
+      → Worker Preview
 ```
 
 The product direction is a professional operational platform: clear status, high information density, few clicks, mobile-first worker interactions, and no decorative controls that do nothing.
@@ -44,15 +47,23 @@ The worker can view shifts, attendance, hours, documents, pay information repres
 
 The first proof feature is `Worker Buddy`: an optional, multilingual onboarding agent active for a configurable 30–90 days.
 
-### Operations Workspace
+### HR / Administration
 
 The operations surface serves HR, recruiters, administration, and coordinators. v0.1 focuses on workers, shifts, attendance/cases, communication, alerts, and the Buddy queue. Other modules may be represented as clearly marked future or inactive areas, but visible controls must not pretend to work.
 
 The first implemented group is `HR / Administration`. Its dashboard and module navigation are intentionally shaped around the audited Control Desk flows: candidates, active workers, inbox triage, client companies, documents, payroll preview, and leave requests. The Boss layer is a separate follow-up surface and is not mixed into this HR slice.
 
-### Owner Control Tower
+### Coordinator Workspace
 
-The owner sees active workers, attendance signals, critical issues, open cases, overdue documents, coordinator load, client impact, and an AI report placeholder grounded in demo data. Payroll remains a later module.
+The coordinator owns daily execution for an assigned worker group: planning, worker messenger, Worker Buddy cases, attendance signals, transport escalation, and important numbers. A coordinator may confirm an operational solution and message a worker, but cannot approve payroll, terminate a worker, or change an HR record without the relevant authority.
+
+### Worker Preview
+
+The worker surface is intentionally `preview only` for this milestone. A worker can read planning, acknowledge that an assignment is understood, use Worker Buddy, send a message to the coordinator, report a problem, and call a verified number. A worker cannot change a shift, approve leave, alter payroll, or modify agency data.
+
+### Boss Control Tower
+
+The Boss sees all branches: active workers, attendance signals, critical issues, HR load, coordinator availability, open cases, client impact, important decisions, and the event log. Boss actions remain bounded to acknowledgement, escalation and navigation in the demo; HR and coordinators own the execution details.
 
 ## 4. Worker Buddy contract
 
@@ -101,8 +112,9 @@ new worker onboarded
   → worker reports a transport problem
   → Buddy creates a structured case
   → coordinator receives and resolves the case
-  → worker sees the status update
-  → owner sees the operational state change
+  → worker sees the status update and can message the coordinator
+  → HR sees the structured operational record
+  → Boss sees the organization-wide state change
 ```
 
 The same fixture model must support the absence/coverage branch used by operational validation:
@@ -147,9 +159,10 @@ new repo
   → Control Desk audit
   → shell/navigation migration
   → role switcher
-  → Worker App
-  → Operations Workspace
-  → Owner Control Tower
+  → HR / Administration
+  → Coordinator Workspace
+  → Worker Preview
+  → Boss Control Tower
   → Worker Buddy proof flow
   → i18n framework
   → Wave 1 translations
@@ -160,7 +173,7 @@ new repo
 
 ## 8. Validation and deployment gates
 
-The demo is ready only when every visible required control performs a real action, roles and locales can be switched, the Buddy transport flow completes end-to-end, the absence branch is testable, Worker App works on mobile, direct component strings are absent, missing translation keys are detected, and a Vercel Preview is available.
+The demo is ready only when every visible required control performs a real action, the four branches can be switched, planning acknowledgement and messenger delivery work through the shared API, the Buddy transport flow completes end-to-end, the absence branch is testable, Worker Preview works on mobile, direct component strings are absent, missing translation keys are detected, and a Vercel Preview is available.
 
 Change flow:
 
@@ -190,4 +203,4 @@ Control Desk remains untouched. NemezisAI has independent Git history. Demo data
 
 ## 11. Acceptance decision
 
-This lock authorizes implementation of the isolated NemezisAI demo, with Worker Buddy included as a bounded, human-escalating onboarding module. It does not authorize production integrations, autonomous employment decisions, payroll execution, or migration of the entire Control Desk repository.
+This lock authorizes implementation of the isolated NemezisAI demo with four controlled branches and Worker Buddy as a bounded, human-escalating onboarding module. It does not authorize production integrations, autonomous employment decisions, payroll execution, worker self-service authority, or migration of the entire Control Desk repository.

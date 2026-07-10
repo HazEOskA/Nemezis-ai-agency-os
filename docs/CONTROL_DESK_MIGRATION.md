@@ -69,9 +69,10 @@ The role switcher is a demo control, not a production authorization bypass. In p
 
 | Source idea | NemezisAI surface | v0.1 responsibility |
 | --- | --- | --- |
-| Operator dashboard | Operations Workspace | Receive and resolve Buddy cases |
-| Agent/user activity | Worker App | View shift, use Buddy, confirm status |
-| System overview | Owner Control Tower | See case and client-impact changes |
+| Operator dashboard | Coordinator Workspace | Receive and resolve Buddy cases |
+| Agent/user activity | Worker Preview | View planning, use Buddy, message a human |
+| HR command desk | HR / Administration | Manage people, documents, companies and review queues |
+| System overview | Boss Control Tower | See case, client-impact and organization changes |
 | Global alerts | Shared case/alert model | Reflect severity consistently |
 | Command actions | Confirmed workflow actions | Resolve demo cases only |
 
@@ -81,8 +82,9 @@ The role switcher is a demo control, not a production authorization bypass. In p
 2. Record reusable assets and rejected assets in the implementation commit.
 3. Rebuild the NemezisAI shell in the new repository.
 4. Add role and locale switchers with deterministic demo state.
-5. Add the Worker App and Worker Buddy proof flow.
-6. Add Operations case queue and Owner state summary.
+5. Add Worker Preview and Worker Buddy proof flow.
+6. Add Coordinator case/planning/messenger workspace.
+7. Add HR / Administration modules and Boss state summary.
 7. Run typecheck, build, locale validation, and Playwright smoke before adding further modules.
 
 Each migration step gets its own commit. The fixture model is an explicit audited import; routes, auth, deployment files, and unrelated UI are not copied as a generated dump or mixed refactor.
@@ -106,4 +108,4 @@ If a migrated component introduces coupling or visual regression, revert the ind
 
 ## 11. Definition of done
 
-Migration is complete for v0.1 when the NemezisAI shell supports the three roles, the primary Buddy transport flow is connected to the API, the owner sees the resulting state change, Control Desk-derived operational metrics are computed from typed fixtures, the seven Wave 1 locales use external messages, YamanOS-derived lifecycle boundaries are visible in the server state, and both source repositories remain unchanged.
+Migration is complete for v0.1 when the NemezisAI shell supports the four branches, the primary Buddy transport flow and messenger/planning actions are connected to the API, the Boss sees the resulting state change, Control Desk-derived operational metrics are computed from typed fixtures, the seven Wave 1 locales use external messages, YamanOS-derived lifecycle boundaries are visible in the server state, and both source repositories remain unchanged.

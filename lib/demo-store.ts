@@ -8,6 +8,18 @@ import {
   payrollRows,
   workers
 } from './control-desk-fixtures';
+import {
+  coordinatorProfiles,
+  importantNumbers,
+  initialBuddy,
+  initialMessenger,
+  initialPlanning,
+  type AgencyMessage,
+  type BuddyProfile,
+  type ImportantNumber,
+  type MessageActor,
+  type PlanningShift
+} from './agency-domain';
 
 export type DemoCaseStatus = 'open' | 'resolved';
 
@@ -29,8 +41,8 @@ export type DemoCase = {
 
 export type DemoEvent = {
   id: string;
-  type: 'system.ready' | 'case.created' | 'case.resolved' | 'demo.reset';
-  actor: 'worker' | 'coordinator' | 'system';
+  type: 'system.ready' | 'case.created' | 'case.resolved' | 'message.sent' | 'planning.acknowledged' | 'demo.reset';
+  actor: 'worker' | 'coordinator' | 'hr' | 'boss' | 'owner' | 'system';
   timestamp: string;
   message: string;
   caseId?: string;
@@ -56,7 +68,7 @@ export type DemoAlert = {
 };
 
 export type DemoState = {
-  version: 'v0.3-control-desk-kernel';
+  version: 'v0.4-four-branch-kernel';
   persistence: 'memory';
   kernel: {
     status: 'ready';
@@ -69,6 +81,18 @@ export type DemoState = {
   };
   workerReady: boolean;
   case: DemoCase | null;
+  hierarchy: {
+    boss: string;
+    hrAdmin: string;
+    coordinators: string;
+    workers: string;
+  };
+  shared: {
+    planning: PlanningShift[];
+    messenger: AgencyMessage[];
+    importantNumbers: ImportantNumber[];
+    buddy: BuddyProfile;
+  };
   operations: {
     metrics: {
       urgentAlerts: number;
@@ -98,6 +122,7 @@ export type DemoState = {
       documents: typeof documents;
       payroll: typeof payrollRows;
       leave: typeof leaveRequests;
+      messenger: AgencyMessage[];
     };
     alerts: DemoAlert[];
     queue: DemoAction[];
@@ -109,11 +134,29 @@ export type DemoState = {
     clientImpact: 'Low' | 'Medium';
     casesClosedToday: number;
     operationalPulse: number;
+    coordinatorsOnline: number;
+    hrActionsOpen: number;
+    messagesToReview: number;
+  };
+  boss: {
+    activeWorkers: number;
+    readyWorkers: number;
+    attendanceHealth: number;
+    clientImpact: 'Low' | 'Medium';
+    casesClosedToday: number;
+    operationalPulse: number;
+    coordinatorsOnline: number;
+    hrActionsOpen: number;
+    messagesToReview: number;
   };
   events: DemoEvent[];
 };
 
-type RuntimeState = Pick<DemoState, 'workerReady' | 'case' | 'events'>;
+type RuntimeState = Pick<DemoState, 'workerReady' | 'case' | 'events'> & {
+  planning: PlanningShift[];
+  messages: AgencyMessage[];
+  buddy: BuddyProfile;
+};
 
 const actionQueue: DemoAction[] = [
   { id: 'action-001', priority: 'critical', task: 'Respond to LogiTrans: confirm 3 drivers for tomorrow 06:00', due: 'By 18:00 today', category: 'Staffing', source: 'Control Desk' },
@@ -129,6 +172,9 @@ const actionQueue: DemoAction[] = [
 const initialRuntime = (): RuntimeState => ({
   workerReady: true,
   case: null,
+  planning: clone(initialPlanning),
+  messages: clone(initialMessenger),
+  buddy: clone(initialBuddy),
   events: [
     {
       id: 'evt_system_ready',
@@ -190,7 +236,7 @@ function clone<T>(value: T): T {
 function getOperations(runtime: RuntimeState): DemoState['operations'] {
   const metrics = {
     urgentAlerts: controlDeskAlerts.filter((alert) => alert.type === 'urgent').length,
-    unreadMessages: inboxMessages.filter((message) => !message.read).length,
+    unreadMessages: inboxMessages.filter((message) => !message.read).length + runtime.messages.filter((message) => !message.read && message.recipientRole !== 'worker').length,
     contractsToSign: documents.filter((document) => document.status === 'pending').length,
     missingHours: workers.filter((worker) => worker.hoursThisWeek === 0 && worker.status === 'active').length,
     payrollToCheck: payrollRows.filter((row) => row.status === 'flagged' || row.status === 'pending').length,
@@ -242,7 +288,8 @@ function getOperations(runtime: RuntimeState): DemoState['operations'] {
       companies,
       documents,
       payroll: payrollRows,
-      leave: leaveRequests
+      leave: leaveRequests,
+      messenger: runtime.messages
     },
     quickStats: {
       candidates: candidates.length,
@@ -266,9 +313,23 @@ function buildState(): DemoState {
   const missingHours = operations.metrics.missingHours;
   const caseOpen = current.case?.status === 'open';
   const caseResolved = current.case?.status === 'resolved';
+  const coordinatorsOnline = coordinatorProfiles.filter((coordinator) => coordinator.online).length;
+  const hrActionsOpen = operations.queue.filter((action) => action.source === 'Control Desk').length;
+  const messagesToReview = current.messages.filter((message) => !message.read && message.recipientRole !== 'worker').length;
+  const bossSnapshot = {
+    activeWorkers,
+    readyWorkers: activeWorkers - missingHours + (caseResolved ? 1 : 0),
+    attendanceHealth: caseResolved ? 98.4 : caseOpen ? 96.8 : 96.8,
+    clientImpact: caseOpen ? 'Medium' as const : 'Low' as const,
+    casesClosedToday: caseResolved ? 12 : 11,
+    operationalPulse: caseResolved ? 98 : caseOpen ? 91 : 96,
+    coordinatorsOnline,
+    hrActionsOpen,
+    messagesToReview
+  };
 
   return {
-    version: 'v0.3-control-desk-kernel',
+    version: 'v0.4-four-branch-kernel',
     persistence: 'memory',
     kernel: {
       status: 'ready',
@@ -281,15 +342,21 @@ function buildState(): DemoState {
     },
     workerReady: current.workerReady,
     case: current.case,
-    operations,
-    owner: {
-      activeWorkers,
-      readyWorkers: activeWorkers - missingHours + (caseResolved ? 1 : 0),
-      attendanceHealth: caseResolved ? 98.4 : caseOpen ? 96.8 : 96.8,
-      clientImpact: caseOpen ? 'Medium' : 'Low',
-      casesClosedToday: caseResolved ? 12 : 11,
-      operationalPulse: caseResolved ? 98 : caseOpen ? 91 : 96
+    hierarchy: {
+      boss: 'Linda van den Berg',
+      hrAdmin: 'HR / Administration',
+      coordinators: '3 coordinators · 42 assigned workers',
+      workers: 'Worker Preview · read-only operational surface'
     },
+    shared: {
+      planning: clone(current.planning),
+      messenger: clone(current.messages),
+      importantNumbers: clone(importantNumbers),
+      buddy: clone(current.buddy)
+    },
+    operations,
+    owner: bossSnapshot,
+    boss: bossSnapshot,
     events: clone(current.events)
   };
 }
@@ -352,6 +419,65 @@ export function resolveTransportCase(caseId: string) {
   });
 
   return { resolved: true, state: getDemoState() };
+}
+
+export function sendAgencyMessage(input: {
+  body: string;
+  actor: MessageActor;
+  sender: string;
+  recipient: string;
+  recipientRole: MessageActor;
+  source?: AgencyMessage['source'];
+}) {
+  const current = kernel().getRuntime();
+  const body = input.body.trim();
+
+  if (!body) {
+    return {sent: false, reason: 'EMPTY_MESSAGE' as const, state: getDemoState()};
+  }
+
+  const message: AgencyMessage = {
+    id: `msg-${Date.now()}`,
+    threadId: `thread-${input.sender.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+    sender: input.sender,
+    senderRole: input.actor,
+    recipient: input.recipient,
+    recipientRole: input.recipientRole,
+    body,
+    time: new Date().toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit'}),
+    read: false,
+    priority: 'normal',
+    source: input.source || 'Messenger'
+  };
+
+  current.messages.push(message);
+  kernel().emit({
+    type: 'message.sent',
+    actor: input.actor,
+    message: `${input.actor} sent a messenger message to ${input.recipient}`
+  });
+
+  return {sent: true, message, state: getDemoState()};
+}
+
+export function acknowledgePlanning(shiftId: string) {
+  const current = kernel().getRuntime();
+  const shift = current.planning.find((item) => item.id === shiftId);
+
+  if (!shift) {
+    return {acknowledged: false, reason: 'SHIFT_NOT_FOUND' as const, state: getDemoState()};
+  }
+
+  shift.acknowledged = true;
+  if (shift.status === 'pending') shift.status = 'confirmed';
+  kernel().emit({
+    type: 'planning.acknowledged',
+    actor: 'worker',
+    message: `${shift.workerName} acknowledged ${shift.client} planning`,
+    caseId: shift.id
+  });
+
+  return {acknowledged: true, shift, state: getDemoState()};
 }
 
 export function resetDemoState() {

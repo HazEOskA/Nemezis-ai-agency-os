@@ -272,7 +272,7 @@ export default function HRAdminSurface({
   activeModule: HRModule;
   onModuleChange: (module: HRModule) => void;
   onReset: () => void | Promise<void>;
-  actionPending: 'create' | 'resolve' | 'reset' | null;
+  actionPending: 'create' | 'resolve' | 'reset' | 'message' | 'planning' | null;
 }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
