@@ -85,6 +85,7 @@
   "useRoleSwitcher": "Volg hetzelfde event via de rolwisselaar door het platform.",
   "languages": "Taal",
   "aiDisclosure": "Worker Buddy is een AI-assistent. Een menselijke coördinator is altijd beschikbaar.",
+  "demoApiError": "De demostatus kon niet worden bijgewerkt. Probeer het opnieuw of neem contact op met de coördinator.",
   "uncertainFallback": "Ik heb niet genoeg informatie. Ik stuur dit door naar je coördinator.",
   "roleLabel": "Huidige omgeving",
   "statusLive": "Live",

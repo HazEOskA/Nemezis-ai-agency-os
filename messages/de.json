@@ -85,6 +85,7 @@
   "useRoleSwitcher": "Nutze den Rollenwechsel, um dasselbe Ereignis im System zu verfolgen.",
   "languages": "Sprache",
   "aiDisclosure": "Worker Buddy ist ein KI-Assistent. Eine menschliche Koordinatorin ist immer erreichbar.",
+  "demoApiError": "Der Demo-Status konnte nicht aktualisiert werden. Bitte versuche es erneut oder kontaktiere die Koordination.",
   "uncertainFallback": "Ich habe nicht genügend Informationen. Ich leite den Vorgang an deine Koordinatorin weiter.",
   "roleLabel": "Aktuelle Oberfläche",
   "statusLive": "Live",

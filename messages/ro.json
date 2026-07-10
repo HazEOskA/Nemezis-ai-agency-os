@@ -85,6 +85,7 @@
   "useRoleSwitcher": "Folosește schimbarea de rol pentru a urmări același eveniment.",
   "languages": "Limbă",
   "aiDisclosure": "Worker Buddy este un asistent AI. Un coordonator uman este mereu disponibil.",
+  "demoApiError": "Starea demo nu a putut fi actualizată. Încearcă din nou sau contactează coordonatorul.",
   "uncertainFallback": "Nu am suficiente informații. Trimit cazul coordonatorului.",
   "roleLabel": "Suprafață curentă",
   "statusLive": "Live",

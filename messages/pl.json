@@ -85,6 +85,7 @@
   "useRoleSwitcher": "Przełączaj role, aby śledzić to samo zdarzenie w całej platformie.",
   "languages": "Język",
   "aiDisclosure": "Worker Buddy jest asystentem AI. Kontakt z koordynatorem jest zawsze dostępny.",
+  "demoApiError": "Nie udało się zaktualizować stanu demo. Spróbuj ponownie albo skontaktuj się z koordynatorem.",
   "uncertainFallback": "Nie mam wystarczających informacji. Przekazuję sprawę koordynatorowi.",
   "roleLabel": "Bieżąca powierzchnia",
   "statusLive": "Live",

@@ -10,7 +10,24 @@ Control Desk is a design and component reference, not the NemezisAI codebase. Th
 
 The migration objective is to preserve useful operational clarity while changing the product posture from an experimental command center to a premium staffing-agency platform.
 
-## 2. What we may reuse
+## 2. Audited source logic
+
+The source audit covered the Control Desk README, deployed dashboard, fixture model, dashboard derivations, navigation, worker table, inbox triage, company overview, documents, payroll preview, and leave actions. The audited fixture model now lives in `lib/control-desk-fixtures.ts` as synthetic demo data.
+
+The second reference found through repository search was `YamanAddas/YamanOS`. It is a mobile browser-OS simulation, not a staffing system. Its useful patterns are adapted rather than copied: a guarded boot sequence, a kernel-owned event bus, isolated services, process lifecycle events, mobile-first shell behavior, and browser persistence boundaries. Its unrelated apps and virtual filesystem are not part of the NemezisAI staffing domain.
+
+The NemezisAI implementation boundary is now:
+
+```text
+Control Desk fixtures and derivations
+  → staffing operations overview and alert queue
+YamanOS lifecycle patterns
+  → agency kernel, event history, service status, and guarded actions
+Worker Buddy domain
+  → transport case creation, coordinator resolution, owner impact
+```
+
+## 3. What we may reuse
 
 | Control Desk asset | NemezisAI use | Decision |
 | --- | --- | --- |
@@ -20,9 +37,10 @@ The migration objective is to preserve useful operational clarity while changing
 | Alert styling | Severity and queue presentation | Adapt |
 | Operator actions | Explicit actions with confirmation | Reuse concept |
 | Module grouping | Worker / Operations / Owner surfaces | Recompose |
-| Existing code | Direct copy of business logic | Prohibited until reviewed |
+| Audited fixture model and metric derivations | Typed demo domain data and operational KPIs | Reuse with synthetic-data boundary |
+| Existing code | Direct copy of routes, auth, or deployment configuration | Prohibited |
 
-## 3. What we must not copy blindly
+## 4. What we must not copy blindly
 
 - old routes, auth assumptions, or permission checks;
 - hidden coupling between UI and demo state;
@@ -32,7 +50,7 @@ The migration objective is to preserve useful operational clarity while changing
 - unfinished command-center metaphors that make the staffing workflow unclear;
 - any production integrations, credentials, or records.
 
-## 4. Target shell
+## 5. Target shell
 
 The NemezisAI shell keeps the useful cockpit characteristics but changes the hierarchy:
 
@@ -47,7 +65,7 @@ Agency identity
 
 The role switcher is a demo control, not a production authorization bypass. In production, role access must come from the permissions package and server-side checks.
 
-## 5. Role mapping
+## 6. Role mapping
 
 | Source idea | NemezisAI surface | v0.1 responsibility |
 | --- | --- | --- |
@@ -57,7 +75,7 @@ The role switcher is a demo control, not a production authorization bypass. In p
 | Global alerts | Shared case/alert model | Reflect severity consistently |
 | Command actions | Confirmed workflow actions | Resolve demo cases only |
 
-## 6. Migration sequence
+## 7. Migration sequence
 
 1. Inspect Control Desk routes, components, tokens, and state boundaries.
 2. Record reusable assets and rejected assets in the implementation commit.
@@ -67,9 +85,9 @@ The role switcher is a demo control, not a production authorization bypass. In p
 6. Add Operations case queue and Owner state summary.
 7. Run typecheck, build, locale validation, and Playwright smoke before adding further modules.
 
-Each migration step gets its own commit. No mass copy, generated dump, or mixed refactor is allowed in the first implementation branch.
+Each migration step gets its own commit. The fixture model is an explicit audited import; routes, auth, deployment files, and unrelated UI are not copied as a generated dump or mixed refactor.
 
-## 7. UI acceptance rules
+## 8. UI acceptance rules
 
 - Every visible required tab has a real destination or an explicit disabled/future state.
 - Every action changes demo state, opens a meaningful detail view, or explains why it is unavailable.
@@ -78,14 +96,14 @@ Each migration step gets its own commit. No mass copy, generated dump, or mixed 
 - Owner views prioritize operational numbers and impact over decorative charts.
 - Buddy always exposes contact with a human.
 
-## 8. Data and security boundary
+## 9. Data and security boundary
 
 The migration may copy visual tokens and generic UI patterns only. It must not copy real worker, client, payroll, message, document, credential, or deployment data. Demo fixtures must be newly authored under `packages/demo-data`.
 
-## 9. Rollback
+## 10. Rollback
 
 If a migrated component introduces coupling or visual regression, revert the individual NemezisAI migration commit. Do not modify or reset the Control Desk repository. A Vercel Preview is required before merging shell changes into `main`.
 
-## 10. Definition of done
+## 11. Definition of done
 
-Migration is complete for v0.1 when the NemezisAI shell supports the three roles, the primary Buddy transport flow is connected, the owner sees the resulting state change, the seven Wave 1 locales use external messages, and the source Control Desk remains unchanged.
+Migration is complete for v0.1 when the NemezisAI shell supports the three roles, the primary Buddy transport flow is connected to the API, the owner sees the resulting state change, Control Desk-derived operational metrics are computed from typed fixtures, the seven Wave 1 locales use external messages, YamanOS-derived lifecycle boundaries are visible in the server state, and both source repositories remain unchanged.

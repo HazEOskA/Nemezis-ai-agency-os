@@ -1,12 +1,41 @@
 'use client';
 
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 import {useLocale, useTranslations} from 'next-intl';
 import {useRouter} from 'next/navigation';
 import {demoWorker} from '../lib/demo-data';
+import type {DemoState} from '../lib/demo-store';
 
 type Role = 'worker' | 'operations' | 'owner';
 type CaseState = 'idle' | 'confirming' | 'open' | 'resolved';
+
+async function readDemoState() {
+  const response = await fetch('/api/demo/state', {cache: 'no-store'});
+  const payload = await response.json() as {ok?: boolean; data?: DemoState; error?: string};
+
+  if (!response.ok || !payload.ok || !payload.data) {
+    throw new Error(payload.error || 'Unable to load demo state');
+  }
+
+  return payload.data;
+}
+
+async function mutateDemoState(endpoint: string, body?: Record<string, unknown>) {
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: body ? {'Content-Type': 'application/json'} : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+    cache: 'no-store'
+  });
+  const payload = await response.json() as {ok?: boolean; data?: DemoState; state?: DemoState; error?: string};
+  const state = payload.data || payload.state;
+
+  if (!response.ok || !payload.ok || !state) {
+    throw new Error(payload.error || 'Unable to update demo state');
+  }
+
+  return state;
+}
 
 const locales = [
   ['en', 'EN'],
@@ -55,23 +84,80 @@ export default function DemoApp() {
   const locale = useLocale();
   const router = useRouter();
   const [role, setRole] = useState<Role>('worker');
-  const [caseState, setCaseState] = useState<CaseState>('idle');
+  const [demoState, setDemoState] = useState<DemoState | null>(null);
+  const [buddyStep, setBuddyStep] = useState<'idle' | 'confirming'>('idle');
   const [contactSent, setContactSent] = useState(false);
   const [controllerOpen, setControllerOpen] = useState(false);
+  const [actionPending, setActionPending] = useState<'create' | 'resolve' | 'reset' | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
 
-  const openTransportConfirmation = () => setCaseState('confirming');
-  const createTransportCase = () => setCaseState('open');
-  const resolveTransport = () => setCaseState('resolved');
-  const resetDemo = () => {
-    setCaseState('idle');
-    setContactSent(false);
-    setRole('worker');
+  useEffect(() => {
+    readDemoState()
+      .then(setDemoState)
+      .catch((error: unknown) => {
+        console.error('[Demo] Failed to load state', error);
+        setApiError(t('demoApiError'));
+      });
+  }, []);
+
+  const openTransportConfirmation = () => {
+    setApiError(null);
+    setBuddyStep('confirming');
+  };
+
+  const createTransportCase = async () => {
+    setActionPending('create');
+    setApiError(null);
+    try {
+      const nextState = await mutateDemoState('/api/demo/cases', {category: 'transport', confirmed: true, source: 'Worker Buddy'});
+      setDemoState(nextState);
+      setBuddyStep('idle');
+    } catch (error: unknown) {
+      console.error('[Demo] Failed to create case', error);
+      setApiError(t('demoApiError'));
+    } finally {
+      setActionPending(null);
+    }
+  };
+
+  const resolveTransport = async () => {
+    if (!demoState?.case) return;
+
+    setActionPending('resolve');
+    setApiError(null);
+    try {
+      const nextState = await mutateDemoState(`/api/demo/cases/${demoState.case.id}/resolve`, {confirmed: true});
+      setDemoState(nextState);
+    } catch (error: unknown) {
+      console.error('[Demo] Failed to resolve case', error);
+      setApiError(t('demoApiError'));
+    } finally {
+      setActionPending(null);
+    }
+  };
+
+  const resetDemo = async () => {
+    setActionPending('reset');
+    setApiError(null);
+    try {
+      const nextState = await mutateDemoState('/api/demo/reset');
+      setDemoState(nextState);
+      setBuddyStep('idle');
+      setContactSent(false);
+      setRole('worker');
+    } catch (error: unknown) {
+      console.error('[Demo] Failed to reset demo', error);
+      setApiError(t('demoApiError'));
+    } finally {
+      setActionPending(null);
+    }
   };
 
   const switchLocale = (nextLocale: string) => {
     router.push(`/${nextLocale}`);
   };
 
+  const caseState: CaseState = demoState?.case?.status || buddyStep;
   const caseIsOpen = caseState === 'open' || caseState === 'resolved';
   const caseIsResolved = caseState === 'resolved';
 
@@ -187,25 +273,34 @@ export default function DemoApp() {
             </div>
           )}
 
+          {apiError && (
+            <div className="toast toast-error" role="alert">
+              <StatusDot tone="red" />
+              <span>{apiError}</span>
+              <button type="button" onClick={() => setApiError(null)} aria-label={t('cancel')}>×</button>
+            </div>
+          )}
+
           {role === 'worker' && (
             <WorkerSurface
               t={t}
               caseState={caseState}
               onTransportProblem={openTransportConfirmation}
               onCreateCase={createTransportCase}
-              onCancel={() => setCaseState('idle')}
+              onCancel={() => setBuddyStep('idle')}
               onContact={() => setContactSent(true)}
             />
           )}
           {role === 'operations' && (
             <OperationsSurface
               t={t}
-              caseState={caseState}
+              state={demoState}
               onResolve={resolveTransport}
               onReset={resetDemo}
+              actionPending={actionPending}
             />
           )}
-          {role === 'owner' && <OwnerSurface t={t} caseState={caseState} onReset={resetDemo} />}
+          {role === 'owner' && <OwnerSurface t={t} state={demoState} onReset={resetDemo} />}
 
           <button className="controller-toggle" type="button" onClick={() => setControllerOpen((open) => !open)}>
             <span className="controller-pulse" />
@@ -218,7 +313,7 @@ export default function DemoApp() {
                 <span className="eyebrow">{t('workflow')}</span>
                 <strong>{t('useRoleSwitcher')}</strong>
               </div>
-              <button className="button button-ghost" type="button" onClick={resetDemo}>{t('resetDemo')}</button>
+              <button className="button button-ghost" type="button" onClick={resetDemo} disabled={actionPending === 'reset'}>{t('resetDemo')}</button>
             </div>
           )}
         </div>
@@ -341,63 +436,72 @@ function WorkerSurface({
 
 function OperationsSurface({
   t,
-  caseState,
+  state,
   onResolve,
-  onReset
+  onReset,
+  actionPending
 }: {
   t: ReturnType<typeof useTranslations>;
-  caseState: CaseState;
-  onResolve: () => void;
-  onReset: () => void;
+  state: DemoState | null;
+  onResolve: () => void | Promise<void>;
+  onReset: () => void | Promise<void>;
+  actionPending: 'create' | 'resolve' | 'reset' | null;
 }) {
-  const open = caseState === 'open';
-  const resolved = caseState === 'resolved';
+  const currentCase = state?.case;
+  const operations = state?.operations;
+  const owner = state?.owner;
+  const open = currentCase?.status === 'open';
+  const resolved = currentCase?.status === 'resolved';
+  const caseCount = open ? '01' : '00';
+
   return (
     <>
       <section className="page-intro page-intro-compact">
         <div><span className="eyebrow"><StatusDot tone={open ? 'amber' : 'mint'} /> {t('operationsRole')} / {t('liveDemo')}</span><h1>{t('operationsTitle')}</h1><p>{t('operationsSubtitle')}</p></div>
-        <button className="button button-ghost" type="button" onClick={onReset}><span className="reset-icon">↻</span>{t('resetDemo')}</button>
+        <button className="button button-ghost" type="button" onClick={onReset} disabled={actionPending === 'reset'}><span className="reset-icon">↻</span>{t('resetDemo')}</button>
       </section>
       <section className="metric-grid metric-grid-four">
         <MetricCard label={t('openCases')} value={open ? '1' : '0'} delta={open ? t('needAttention') : t('queueEmpty')} tone={open ? 'amber' : 'mint'} />
-        <MetricCard label={t('criticalAlerts')} value="0" delta={t('allSystems')} tone="mint" />
-        <MetricCard label={t('readyWorkers')} value={resolved ? '48' : '47'} delta={resolved ? '+1 today' : t('needAttention')} tone={resolved ? 'mint' : 'blue'} />
-        <MetricCard label={t('resolvedToday')} value={resolved ? '12' : '11'} delta={resolved ? '+1 case' : 'Stable'} tone="blue" />
+        <MetricCard label={t('criticalAlerts')} value={String(operations?.metrics.urgentAlerts ?? '—')} delta={operations?.metrics.urgentAlerts ? t('needAttention') : t('allSystems')} tone={operations?.metrics.urgentAlerts ? 'amber' : 'mint'} />
+        <MetricCard label={t('readyWorkers')} value={String(owner?.readyWorkers ?? '—')} delta={resolved ? '+1 today' : t('needAttention')} tone={resolved ? 'mint' : 'blue'} />
+        <MetricCard label={t('resolvedToday')} value={String(owner?.casesClosedToday ?? '—')} delta={resolved ? '+1 case' : 'Stable'} tone="blue" />
       </section>
       <section className="operations-layout">
         <div className="surface-card queue-card">
-          <div className="card-heading-row"><div><span className="eyebrow">{t('queueTitle')}</span><h2>{t('queueSubtitle')}</h2></div><span className="queue-count">{open ? '01' : '00'}</span></div>
-          {open || resolved ? (
+          <div className="card-heading-row"><div><span className="eyebrow">{t('queueTitle')}</span><h2>{t('queueSubtitle')}</h2></div><span className="queue-count">{caseCount}</span></div>
+          {currentCase ? (
             <div className={resolved ? 'case-row case-row-resolved' : 'case-row'}>
               <div className="severity-mark"><StatusDot tone={resolved ? 'mint' : 'amber'} /></div>
-              <div className="case-main"><div className="case-row-title"><strong>{t('caseTitle')}</strong><span className={resolved ? 'tag tag-green' : 'tag tag-amber'}>{resolved ? t('caseStatusResolved') : t('transport')}</span></div><span>{demoWorker.name} · {demoWorker.client} · {t('source')}: Worker Buddy</span></div>
-              <div className="case-row-side"><span className="case-time">{demoWorker.pickup}</span>{resolved ? <CheckIcon /> : <span className="case-arrow">→</span>}</div>
+              <div className="case-main"><div className="case-row-title"><strong>{t('caseTitle')}</strong><span className={resolved ? 'tag tag-green' : 'tag tag-amber'}>{resolved ? t('caseStatusResolved') : t('transport')}</span></div><span>{currentCase.worker} · {currentCase.client} · {t('source')}: {currentCase.source}</span></div>
+              <div className="case-row-side"><span className="case-time">{currentCase.pickup}</span>{resolved ? <CheckIcon /> : <span className="case-arrow">→</span>}</div>
             </div>
           ) : (
             <div className="empty-queue"><div className="empty-icon">✓</div><strong>{t('queueEmpty')}</strong><span>{t('allSystems')}</span></div>
           )}
-          {open && <button className="button button-primary queue-action" type="button" onClick={onResolve}><CheckIcon /> {t('resolveTransport')}</button>}
+          {open && <button className="button button-primary queue-action" type="button" onClick={onResolve} disabled={actionPending === 'resolve'}><CheckIcon /> {t('resolveTransport')}</button>}
         </div>
         <div className="surface-card case-detail-card">
           <div className="eyebrow">{t('activity')}</div>
-          <div className="detail-activity"><ActivityDot tone="blue" title={t('caseCreated')} detail={`${demoWorker.name} · ${t('source')}: Worker Buddy`} /><ActivityDot tone={resolved ? 'mint' : 'amber'} title={resolved ? t('transportResolved') : t('caseStatusOpen')} detail={`${demoWorker.caseId} · ${demoWorker.coordinator}`} /></div>
-          <div className="case-facts"><Fact label={t('assignedTo')} value={demoWorker.coordinator} /><Fact label={t('status')} value={resolved ? t('caseStatusResolved') : open ? t('caseStatusOpen') : t('queueEmpty')} /><Fact label={t('caseId')} value={demoWorker.caseId} /></div>
+          <div className="detail-activity">{currentCase ? <><ActivityDot tone="blue" title={t('caseCreated')} detail={`${currentCase.worker} · ${t('source')}: ${currentCase.source}`} /><ActivityDot tone={resolved ? 'mint' : 'amber'} title={resolved ? t('transportResolved') : t('caseStatusOpen')} detail={`${currentCase.id} · ${currentCase.coordinator}`} /></> : <ActivityDot tone="mint" title={t('workerReady')} detail={t('allSystems')} />}</div>
+          <div className="case-facts"><Fact label={t('assignedTo')} value={currentCase?.coordinator || demoWorker.coordinator} /><Fact label={t('status')} value={resolved ? t('caseStatusResolved') : open ? t('caseStatusOpen') : t('queueEmpty')} /><Fact label={t('caseId')} value={currentCase?.id || demoWorker.caseId} /></div>
         </div>
       </section>
     </>
   );
 }
 
-function OwnerSurface({t, caseState, onReset}: {t: ReturnType<typeof useTranslations>; caseState: CaseState; onReset: () => void}) {
-  const resolved = caseState === 'resolved';
-  const open = caseState === 'open';
+function OwnerSurface({t, state, onReset}: {t: ReturnType<typeof useTranslations>; state: DemoState | null; onReset: () => void | Promise<void>}) {
+  const resolved = state?.case?.status === 'resolved';
+  const open = state?.case?.status === 'open';
+  const owner = state?.owner;
+  const currentCase = state?.case;
   return (
     <>
       <section className="page-intro page-intro-compact"><div><span className="eyebrow"><StatusDot tone="mint" /> {t('ownerRole')} / {t('liveDemo')}</span><h1>{t('ownerTitle')}</h1><p>{t('ownerSubtitle')}</p></div><div className="owner-health"><StatusDot /> {t('allSystems')}</div></section>
-      <section className="metric-grid metric-grid-four owner-metrics"><MetricCard label={t('activeWorkers')} value="48" delta="+6 this month" tone="blue" /><MetricCard label={t('attendanceHealth')} value={resolved ? '98.4%' : '96.8%'} delta={resolved ? '+1.6% after resolution' : 'Watch transport queue'} tone={resolved ? 'mint' : 'amber'} /><MetricCard label={t('clientImpact')} value={resolved ? 'Low' : open ? 'Medium' : 'Low'} delta={resolved ? t('workerReady') : open ? t('needAttention') : t('allSystems')} tone={resolved ? 'mint' : open ? 'amber' : 'blue'} /><MetricCard label={t('casesClosed')} value={resolved ? '12' : '11'} delta={resolved ? '+1 today' : 'Stable'} tone="mint" /></section>
+      <section className="metric-grid metric-grid-four owner-metrics"><MetricCard label={t('activeWorkers')} value={String(owner?.activeWorkers ?? '—')} delta="Control Desk fixture" tone="blue" /><MetricCard label={t('attendanceHealth')} value={owner ? `${owner.attendanceHealth.toFixed(1)}%` : '—'} delta={resolved ? '+1.6% after resolution' : 'Watch transport queue'} tone={resolved ? 'mint' : 'amber'} /><MetricCard label={t('clientImpact')} value={owner?.clientImpact || '—'} delta={resolved ? t('workerReady') : open ? t('needAttention') : t('allSystems')} tone={resolved ? 'mint' : open ? 'amber' : 'blue'} /><MetricCard label={t('casesClosed')} value={String(owner?.casesClosedToday ?? '—')} delta={resolved ? '+1 today' : 'Stable'} tone="mint" /></section>
       <section className="owner-layout">
-        <div className="surface-card pulse-card"><div className="pulse-header"><div><span className="eyebrow">{t('operationalPulse')}</span><h2>{t('ownerLine')}</h2></div><div className="pulse-score">{resolved ? '98' : open ? '91' : '96'}<span>/100</span></div></div><div className="pulse-bars"><span style={{height: resolved ? '82%' : '67%'}} /><span style={{height: resolved ? '91%' : '72%'}} /><span style={{height: resolved ? '96%' : '78%'}} /><span style={{height: resolved ? '88%' : '64%'}} /><span style={{height: resolved ? '98%' : '81%'}} /><span style={{height: resolved ? '94%' : '74%'}} /><span style={{height: resolved ? '100%' : '85%'}} /></div><div className="pulse-axis"><span>08:00</span><span>10:00</span><span>12:00</span><span>14:00</span></div></div>
-        <div className="surface-card activity-card"><div className="card-heading-row"><div><span className="eyebrow">{t('recentActivity')}</span><h2>{t('activity')}</h2></div><span className="activity-live"><StatusDot /> {t('statusLive')}</span></div><ActivityDot tone="blue" title={t('caseCreated')} detail={`${demoWorker.name} · ${demoWorker.client}`} /><ActivityDot tone={resolved ? 'mint' : 'amber'} title={resolved ? t('transportResolved') : t('caseStatusOpen')} detail={`${demoWorker.coordinator} · ${demoWorker.caseId}`} /><ActivityDot tone={resolved ? 'mint' : 'blue'} title={resolved ? t('operationalChange') : t('workerReady')} detail={t('source')} /><button className="button button-ghost full-button" type="button" onClick={onReset}><span className="reset-icon">↻</span>{t('resetDemo')}</button></div>
+        <div className="surface-card pulse-card"><div className="pulse-header"><div><span className="eyebrow">{t('operationalPulse')}</span><h2>{t('ownerLine')}</h2></div><div className="pulse-score">{owner?.operationalPulse ?? '—'}<span>/100</span></div></div><div className="pulse-bars"><span style={{height: resolved ? '82%' : '67%'}} /><span style={{height: resolved ? '91%' : '72%'}} /><span style={{height: resolved ? '96%' : '78%'}} /><span style={{height: resolved ? '88%' : '64%'}} /><span style={{height: resolved ? '98%' : '81%'}} /><span style={{height: resolved ? '94%' : '74%'}} /><span style={{height: resolved ? '100%' : '85%'}} /></div><div className="pulse-axis"><span>08:00</span><span>10:00</span><span>12:00</span><span>14:00</span></div></div>
+        <div className="surface-card activity-card"><div className="card-heading-row"><div><span className="eyebrow">{t('recentActivity')}</span><h2>{t('activity')}</h2></div><span className="activity-live"><StatusDot /> {t('statusLive')}</span></div><ActivityDot tone={currentCase ? 'blue' : 'mint'} title={currentCase ? t('caseCreated') : t('workerReady')} detail={currentCase ? `${currentCase.worker} · ${currentCase.client}` : t('allSystems')} /><ActivityDot tone={resolved ? 'mint' : open ? 'amber' : 'blue'} title={resolved ? t('transportResolved') : open ? t('caseStatusOpen') : t('workerReady')} detail={currentCase ? `${currentCase.coordinator} · ${currentCase.id}` : t('source')} /><ActivityDot tone={resolved ? 'mint' : 'blue'} title={resolved ? t('operationalChange') : t('workerReady')} detail={state?.kernel.services.join(' · ') || t('source')} /><button className="button button-ghost full-button" type="button" onClick={onReset}><span className="reset-icon">↻</span>{t('resetDemo')}</button></div>
       </section>
     </>
   );

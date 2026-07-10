@@ -85,6 +85,7 @@
   "useRoleSwitcher": "Use the role switcher to follow the same event across the platform.",
   "languages": "Language",
   "aiDisclosure": "Worker Buddy is an AI assistant. A human coordinator is always available.",
+  "demoApiError": "The demo state could not be updated. Please try again or contact the coordinator.",
   "uncertainFallback": "I do not have enough information. I am sending this to your coordinator.",
   "roleLabel": "Current surface",
   "statusLive": "Live",
