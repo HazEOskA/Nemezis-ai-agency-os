@@ -48,6 +48,8 @@ The first proof feature is `Worker Buddy`: an optional, multilingual onboarding 
 
 The operations surface serves HR, recruiters, administration, and coordinators. v0.1 focuses on workers, shifts, attendance/cases, communication, alerts, and the Buddy queue. Other modules may be represented as clearly marked future or inactive areas, but visible controls must not pretend to work.
 
+The first implemented group is `HR / Administration`. Its dashboard and module navigation are intentionally shaped around the audited Control Desk flows: candidates, active workers, inbox triage, client companies, documents, payroll preview, and leave requests. The Boss layer is a separate follow-up surface and is not mixed into this HR slice.
+
 ### Owner Control Tower
 
 The owner sees active workers, attendance signals, critical issues, open cases, overdue documents, coordinator load, client impact, and an AI report placeholder grounded in demo data. Payroll remains a later module.

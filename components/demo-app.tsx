@@ -5,6 +5,7 @@ import {useLocale, useTranslations} from 'next-intl';
 import {useRouter} from 'next/navigation';
 import {demoWorker} from '../lib/demo-data';
 import type {DemoState} from '../lib/demo-store';
+import HRAdminSurface, {HRAdminNav, type HRModule} from './hr-admin-surface';
 
 type Role = 'worker' | 'operations' | 'owner';
 type CaseState = 'idle' | 'confirming' | 'open' | 'resolved';
@@ -83,13 +84,20 @@ export default function DemoApp() {
   const t = useTranslations();
   const locale = useLocale();
   const router = useRouter();
-  const [role, setRole] = useState<Role>('worker');
+  const [role, setRole] = useState<Role>('operations');
+  const [hrModule, setHrModule] = useState<HRModule>('dashboard');
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [demoState, setDemoState] = useState<DemoState | null>(null);
   const [buddyStep, setBuddyStep] = useState<'idle' | 'confirming'>('idle');
   const [contactSent, setContactSent] = useState(false);
   const [controllerOpen, setControllerOpen] = useState(false);
   const [actionPending, setActionPending] = useState<'create' | 'resolve' | 'reset' | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
+
+  const switchRole = (nextRole: Role) => {
+    setRole(nextRole);
+    setMobileNavOpen(false);
+  };
 
   useEffect(() => {
     readDemoState()
@@ -144,7 +152,9 @@ export default function DemoApp() {
       setDemoState(nextState);
       setBuddyStep('idle');
       setContactSent(false);
-      setRole('worker');
+      setRole('operations');
+      setHrModule('dashboard');
+      setMobileNavOpen(false);
     } catch (error: unknown) {
       console.error('[Demo] Failed to reset demo', error);
       setApiError(t('demoApiError'));
@@ -163,7 +173,8 @@ export default function DemoApp() {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      {mobileNavOpen && <button className="sidebar-overlay" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation" />}
+      <aside className={mobileNavOpen ? 'sidebar sidebar-open' : 'sidebar'}>
         <div className="brand-lockup">
           <div className="brand-mark">N</div>
           <div>
@@ -183,45 +194,57 @@ export default function DemoApp() {
 
         <div className="side-label">{t('roleLabel')}</div>
         <nav className="primary-nav" aria-label="Primary navigation">
-          <button className="nav-item nav-item-active" type="button">
-            <span className="nav-glyph">◈</span>
-            <span>{t('overview')}</span>
-          </button>
-          <button className="nav-item" type="button" onClick={() => setRole('worker')}>
-            <span className="nav-glyph">◷</span>
-            <span>{t('myShift')}</span>
-          </button>
-          <button className="nav-item" type="button" onClick={() => setRole('worker')}>
-            <span className="nav-glyph">✦</span>
-            <span>{t('buddy')}</span>
-            <span className="nav-count">1</span>
-          </button>
-          <button className="nav-item" type="button" onClick={() => setRole('operations')}>
-            <span className="nav-glyph">▤</span>
-            <span>{t('cases')}</span>
-            {caseIsOpen && <span className="nav-count nav-count-alert">1</span>}
-          </button>
-          <button className="nav-item" type="button" onClick={() => setRole('operations')}>
-            <span className="nav-glyph">◎</span>
-            <span>{t('team')}</span>
-          </button>
-          <div className="side-divider" />
-          <button className="nav-item" type="button" onClick={() => setRole('owner')}>
-            <span className="nav-glyph">⌁</span>
-            <span>{t('ownerView')}</span>
-          </button>
-          <button className="nav-item" type="button">
-            <span className="nav-glyph">⚙</span>
-            <span>{t('settings')}</span>
-          </button>
+          {role === 'operations' ? (
+            <HRAdminNav
+              active={hrModule}
+              onChange={(nextModule) => {
+                setHrModule(nextModule);
+                setMobileNavOpen(false);
+              }}
+            />
+          ) : (
+            <>
+              <button className="nav-item nav-item-active" type="button">
+                <span className="nav-glyph">◈</span>
+                <span>{t('overview')}</span>
+              </button>
+              <button className="nav-item" type="button" onClick={() => switchRole('worker')}>
+                <span className="nav-glyph">◷</span>
+                <span>{t('myShift')}</span>
+              </button>
+              <button className="nav-item" type="button" onClick={() => switchRole('worker')}>
+                <span className="nav-glyph">✦</span>
+                <span>{t('buddy')}</span>
+                <span className="nav-count">1</span>
+              </button>
+              <button className="nav-item" type="button" onClick={() => switchRole('operations')}>
+                <span className="nav-glyph">▤</span>
+                <span>{t('cases')}</span>
+                {caseIsOpen && <span className="nav-count nav-count-alert">1</span>}
+              </button>
+              <button className="nav-item" type="button" onClick={() => switchRole('operations')}>
+                <span className="nav-glyph">◎</span>
+                <span>{t('team')}</span>
+              </button>
+              <div className="side-divider" />
+              <button className="nav-item" type="button" onClick={() => switchRole('owner')}>
+                <span className="nav-glyph">⌁</span>
+                <span>{t('ownerView')}</span>
+              </button>
+              <button className="nav-item" type="button">
+                <span className="nav-glyph">⚙</span>
+                <span>{t('settings')}</span>
+              </button>
+            </>
+          )}
         </nav>
 
         <div className="sidebar-footer">
           <div className="human-card">
-            <div className="human-avatar">AN</div>
+            <div className="human-avatar">{role === 'operations' ? 'LB' : 'AN'}</div>
             <div className="human-copy">
-              <strong>{demoWorker.coordinator}</strong>
-              <span>{t('coordinator')}</span>
+              <strong>{role === 'operations' ? 'Linda van den Berg' : demoWorker.coordinator}</strong>
+              <span>{role === 'operations' ? 'HR / Office Manager' : t('coordinator')}</span>
             </div>
             <span className="online-indicator" aria-label="Online" />
           </div>
@@ -234,22 +257,25 @@ export default function DemoApp() {
 
       <main className="main-shell">
         <header className="topbar">
+          <button className="mobile-menu-button" type="button" onClick={() => setMobileNavOpen((open) => !open)} aria-label="Open navigation">☰</button>
+          <div className="topbar-brand-mark" aria-hidden="true">N</div>
           <div className="topbar-context">
             <span className="topbar-kicker">NEMEZISAI / DEMO</span>
             <span className="topbar-separator">/</span>
             <span className="topbar-current">{role === 'worker' ? t('workerRole') : role === 'operations' ? t('operationsRole') : t('ownerRole')}</span>
           </div>
           <div className="topbar-actions">
+            <button className="notification-button" type="button" onClick={() => {switchRole('operations'); setHrModule('inbox');}} aria-label="Open notifications"><span>♧</span><i /></button>
             <div className="role-switcher" aria-label={t('roleLabel')}>
-              <button className={role === 'worker' ? 'role-button role-button-active' : 'role-button'} type="button" onClick={() => setRole('worker')}>
+              <button className={role === 'worker' ? 'role-button role-button-active' : 'role-button'} type="button" onClick={() => switchRole('worker')}>
                 <RoleIcon role="worker" />
                 <span>{t('workerRole')}</span>
               </button>
-              <button className={role === 'operations' ? 'role-button role-button-active' : 'role-button'} type="button" onClick={() => setRole('operations')}>
+              <button className={role === 'operations' ? 'role-button role-button-active' : 'role-button'} type="button" onClick={() => switchRole('operations')}>
                 <RoleIcon role="operations" />
                 <span>{t('operationsRole')}</span>
               </button>
-              <button className={role === 'owner' ? 'role-button role-button-active' : 'role-button'} type="button" onClick={() => setRole('owner')}>
+              <button className={role === 'owner' ? 'role-button role-button-active' : 'role-button'} type="button" onClick={() => switchRole('owner')}>
                 <RoleIcon role="owner" />
                 <span>{t('ownerRole')}</span>
               </button>
@@ -260,7 +286,7 @@ export default function DemoApp() {
                 {locales.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </label>
-            <div className="topbar-avatar">OS</div>
+            <div className="topbar-avatar">{role === 'operations' ? 'LB' : 'OS'}</div>
           </div>
         </header>
 
@@ -292,10 +318,11 @@ export default function DemoApp() {
             />
           )}
           {role === 'operations' && (
-            <OperationsSurface
+            <HRAdminSurface
               t={t}
               state={demoState}
-              onResolve={resolveTransport}
+              activeModule={hrModule}
+              onModuleChange={setHrModule}
               onReset={resetDemo}
               actionPending={actionPending}
             />

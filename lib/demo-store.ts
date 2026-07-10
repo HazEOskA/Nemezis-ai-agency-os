@@ -90,6 +90,15 @@ export type DemoState = {
       estimatedPayroll: number;
       flaggedPayroll: number;
     };
+    modules: {
+      candidates: typeof candidates;
+      workers: typeof workers;
+      messages: typeof inboxMessages;
+      companies: typeof companies;
+      documents: typeof documents;
+      payroll: typeof payrollRows;
+      leave: typeof leaveRequests;
+    };
     alerts: DemoAlert[];
     queue: DemoAction[];
   };
@@ -226,6 +235,15 @@ function getOperations(runtime: RuntimeState): DemoState['operations'] {
 
   return {
     metrics,
+    modules: {
+      candidates,
+      workers,
+      messages: inboxMessages,
+      companies,
+      documents,
+      payroll: payrollRows,
+      leave: leaveRequests
+    },
     quickStats: {
       candidates: candidates.length,
       newCandidates: candidates.filter((candidate) => candidate.status === 'new').length,
