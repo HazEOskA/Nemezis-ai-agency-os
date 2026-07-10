@@ -93,6 +93,7 @@ Each migration step gets its own commit. The fixture model is an explicit audite
 
 - Every visible required tab has a real destination or an explicit disabled/future state.
 - Every action changes demo state, opens a meaningful detail view, or explains why it is unavailable.
+- No primary action is satisfied by a toast-only placeholder; a click must navigate, mutate shared demo state, open a form, or open a real phone/message action.
 - Status colors have a text label and are not the only accessibility signal.
 - Worker App layout is usable at mobile width before desktop polish is considered complete.
 - Owner views prioritize operational numbers and impact over decorative charts.

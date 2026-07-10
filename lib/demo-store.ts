@@ -41,7 +41,7 @@ export type DemoCase = {
 
 export type DemoEvent = {
   id: string;
-  type: 'system.ready' | 'case.created' | 'case.resolved' | 'message.sent' | 'planning.acknowledged' | 'demo.reset';
+  type: 'system.ready' | 'case.created' | 'case.resolved' | 'message.sent' | 'planning.acknowledged' | 'leave.reviewed' | 'demo.reset';
   actor: 'worker' | 'coordinator' | 'hr' | 'boss' | 'owner' | 'system';
   timestamp: string;
   message: string;
@@ -156,6 +156,7 @@ type RuntimeState = Pick<DemoState, 'workerReady' | 'case' | 'events'> & {
   planning: PlanningShift[];
   messages: AgencyMessage[];
   buddy: BuddyProfile;
+  leaveOverrides: Record<string, 'approved' | 'rejected'>;
 };
 
 const actionQueue: DemoAction[] = [
@@ -175,6 +176,7 @@ const initialRuntime = (): RuntimeState => ({
   planning: clone(initialPlanning),
   messages: clone(initialMessenger),
   buddy: clone(initialBuddy),
+  leaveOverrides: {},
   events: [
     {
       id: 'evt_system_ready',
@@ -234,13 +236,17 @@ function clone<T>(value: T): T {
 }
 
 function getOperations(runtime: RuntimeState): DemoState['operations'] {
+  const reviewedLeave = leaveRequests.map((request) => ({
+    ...request,
+    status: runtime.leaveOverrides[request.id] || request.status
+  })) as typeof leaveRequests;
   const metrics = {
     urgentAlerts: controlDeskAlerts.filter((alert) => alert.type === 'urgent').length,
     unreadMessages: inboxMessages.filter((message) => !message.read).length + runtime.messages.filter((message) => !message.read && message.recipientRole !== 'worker').length,
     contractsToSign: documents.filter((document) => document.status === 'pending').length,
     missingHours: workers.filter((worker) => worker.hoursThisWeek === 0 && worker.status === 'active').length,
     payrollToCheck: payrollRows.filter((row) => row.status === 'flagged' || row.status === 'pending').length,
-    pendingLeave: leaveRequests.filter((request) => request.status === 'pending').length,
+    pendingLeave: reviewedLeave.filter((request) => request.status === 'pending').length,
     documentsNeedAction: documents.filter((document) => document.status === 'missing' || document.status === 'expiring').length,
     staffingIssues: companies.reduce((total, company) => total + company.issues, 0)
   };
@@ -288,7 +294,7 @@ function getOperations(runtime: RuntimeState): DemoState['operations'] {
       companies,
       documents,
       payroll: payrollRows,
-      leave: leaveRequests,
+      leave: reviewedLeave,
       messenger: runtime.messages
     },
     quickStats: {
@@ -452,7 +458,7 @@ export function sendAgencyMessage(input: {
 
   current.messages.push(message);
   kernel().emit({
-    type: 'message.sent',
+    type: 'leave.reviewed',
     actor: input.actor,
     message: `${input.actor} sent a messenger message to ${input.recipient}`
   });
@@ -478,6 +484,24 @@ export function acknowledgePlanning(shiftId: string) {
   });
 
   return {acknowledged: true, shift, state: getDemoState()};
+}
+
+export function reviewLeaveRequest(requestId: string, status: 'approved' | 'rejected') {
+  const current = kernel().getRuntime();
+  const request = leaveRequests.find((item) => item.id === requestId);
+
+  if (!request) {
+    return {reviewed: false, reason: 'LEAVE_REQUEST_NOT_FOUND' as const, state: getDemoState()};
+  }
+
+  current.leaveOverrides[requestId] = status;
+  kernel().emit({
+    type: 'message.sent',
+    actor: 'hr',
+    message: `HR ${status} leave request for ${request.worker}`
+  });
+
+  return {reviewed: true, requestId, status, state: getDemoState()};
 }
 
 export function resetDemoState() {

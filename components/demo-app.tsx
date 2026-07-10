@@ -4,6 +4,7 @@ import {useEffect, useState} from 'react';
 import type {FormEvent} from 'react';
 import {useLocale, useTranslations} from 'next-intl';
 import {useRouter} from 'next/navigation';
+import type {MessageActor} from '../lib/agency-domain';
 import {demoWorker} from '../lib/demo-data';
 import type {DemoState} from '../lib/demo-store';
 import BossSurface, {BossNav, type BossModule} from './boss-surface';
@@ -12,7 +13,7 @@ import HRAdminSurface, {HRAdminNav, type HRModule} from './hr-admin-surface';
 
 type Role = 'worker' | 'coordinator' | 'operations' | 'owner';
 type CaseState = 'idle' | 'confirming' | 'open' | 'resolved';
-type PendingAction = 'create' | 'resolve' | 'reset' | 'message' | 'planning' | null;
+type PendingAction = 'create' | 'resolve' | 'reset' | 'message' | 'planning' | 'review' | null;
 
 async function readDemoState() {
   const response = await fetch('/api/demo/state', {cache: 'no-store'});
@@ -95,7 +96,6 @@ export default function DemoApp() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [demoState, setDemoState] = useState<DemoState | null>(null);
   const [buddyStep, setBuddyStep] = useState<'idle' | 'confirming'>('idle');
-  const [contactSent, setContactSent] = useState(false);
   const [controllerOpen, setControllerOpen] = useState(false);
   const [actionPending, setActionPending] = useState<PendingAction>(null);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -103,6 +103,30 @@ export default function DemoApp() {
   const switchRole = (nextRole: Role) => {
     setRole(nextRole);
     setMobileNavOpen(false);
+  };
+
+  const openBranch = (branch: 'boss' | 'hr' | 'coordinator' | 'worker', module?: string) => {
+    if (branch === 'boss') {
+      switchRole('owner');
+      if (module) setBossModule(module as BossModule);
+      return;
+    }
+    if (branch === 'hr') {
+      switchRole('operations');
+      if (module) setHrModule(module as HRModule);
+      return;
+    }
+    if (branch === 'coordinator') {
+      switchRole('coordinator');
+      if (module) setCoordinatorModule(module as CoordinatorModule);
+      return;
+    }
+    switchRole('worker');
+  };
+
+  const focusHumanContact = () => {
+    switchRole('worker');
+    window.setTimeout(() => document.getElementById('worker-messenger')?.scrollIntoView({behavior: 'smooth', block: 'center'}), 0);
   };
 
   useEffect(() => {
@@ -150,7 +174,7 @@ export default function DemoApp() {
     }
   };
 
-  const sendAgencyMessage = async (input: {body: string; actor: 'worker' | 'coordinator'; recipient: string; recipientRole: 'worker' | 'coordinator'}) => {
+  const sendAgencyMessage = async (input: {body: string; actor: MessageActor; recipient: string; recipientRole: MessageActor}) => {
     setActionPending('message');
     setApiError(null);
     try {
@@ -178,6 +202,20 @@ export default function DemoApp() {
     }
   };
 
+  const reviewLeaveRequest = async (requestId: string, status: 'approved' | 'rejected') => {
+    setActionPending('review');
+    setApiError(null);
+    try {
+      const nextState = await mutateDemoState('/api/demo/leave/review', {requestId, status, confirmed: true});
+      setDemoState(nextState);
+    } catch (error: unknown) {
+      console.error('[Demo] Failed to review leave request', error);
+      setApiError(t('demoApiError'));
+    } finally {
+      setActionPending(null);
+    }
+  };
+
   const resetDemo = async () => {
     setActionPending('reset');
     setApiError(null);
@@ -185,7 +223,6 @@ export default function DemoApp() {
       const nextState = await mutateDemoState('/api/demo/reset');
       setDemoState(nextState);
       setBuddyStep('idle');
-      setContactSent(false);
       setRole('owner');
       setHrModule('dashboard');
       setCoordinatorModule('dashboard');
@@ -256,7 +293,7 @@ export default function DemoApp() {
             />
           ) : (
             <>
-              <button className="nav-item nav-item-active" type="button">
+              <button className="nav-item nav-item-active" type="button" onClick={() => switchRole('worker')}>
                 <span className="nav-glyph">◈</span>
                 <span>{t('overview')}</span>
               </button>
@@ -291,7 +328,7 @@ export default function DemoApp() {
                 <span className="nav-glyph">⌁</span>
                 <span>{t('ownerView')}</span>
               </button>
-              <button className="nav-item" type="button">
+              <button className="nav-item" type="button" onClick={() => {setControllerOpen(true); setMobileNavOpen(false);}}>
                 <span className="nav-glyph">⚙</span>
                 <span>{t('settings')}</span>
               </button>
@@ -308,7 +345,7 @@ export default function DemoApp() {
             </div>
             <span className="online-indicator" aria-label="Online" />
           </div>
-          <button className="sidebar-help" type="button" onClick={() => setContactSent(true)}>
+          <button className="sidebar-help" type="button" onClick={focusHumanContact}>
             <span>?</span>
             {t('humanHelp')}
           </button>
@@ -327,9 +364,9 @@ export default function DemoApp() {
           <div className="topbar-actions">
             <button className="notification-button" type="button" onClick={() => {switchRole('coordinator'); setCoordinatorModule('messenger');}} aria-label="Open notifications"><span>♧</span><i /></button>
             <div className="role-switcher" aria-label={t('roleLabel')}>
-              <button className={role === 'worker' ? 'role-button role-button-active' : 'role-button'} type="button" onClick={() => switchRole('worker')}>
-                <RoleIcon role="worker" />
-                <span>{t('workerRole')}</span>
+              <button className={role === 'owner' ? 'role-button role-button-active' : 'role-button'} type="button" onClick={() => switchRole('owner')}>
+                <RoleIcon role="owner" />
+                <span>{t('ownerRole')}</span>
               </button>
               <button className={role === 'operations' ? 'role-button role-button-active' : 'role-button'} type="button" onClick={() => switchRole('operations')}>
                 <RoleIcon role="operations" />
@@ -339,9 +376,9 @@ export default function DemoApp() {
                 <RoleIcon role="coordinator" />
                 <span>{t('coordinatorRole')}</span>
               </button>
-              <button className={role === 'owner' ? 'role-button role-button-active' : 'role-button'} type="button" onClick={() => switchRole('owner')}>
-                <RoleIcon role="owner" />
-                <span>{t('ownerRole')}</span>
+              <button className={role === 'worker' ? 'role-button role-button-active' : 'role-button'} type="button" onClick={() => switchRole('worker')}>
+                <RoleIcon role="worker" />
+                <span>{t('workerRole')}</span>
               </button>
             </div>
             <label className="locale-picker">
@@ -355,14 +392,6 @@ export default function DemoApp() {
         </header>
 
         <div className="content-wrap">
-          {contactSent && (
-            <div className="toast" role="status">
-              <StatusDot tone="mint" />
-              <span>{t('contactCoordinator')}</span>
-              <button type="button" onClick={() => setContactSent(false)} aria-label={t('cancel')}>×</button>
-            </div>
-          )}
-
           {apiError && (
             <div className="toast toast-error" role="alert">
               <StatusDot tone="red" />
@@ -379,7 +408,7 @@ export default function DemoApp() {
               onTransportProblem={openTransportConfirmation}
               onCreateCase={createTransportCase}
               onCancel={() => setBuddyStep('idle')}
-              onContact={() => setContactSent(true)}
+              onContact={focusHumanContact}
               onSendMessage={sendAgencyMessage}
               onAcknowledgePlanning={acknowledgePlanning}
               actionPending={actionPending}
@@ -391,6 +420,8 @@ export default function DemoApp() {
               state={demoState}
               activeModule={hrModule}
               onModuleChange={setHrModule}
+              onSendMessage={sendAgencyMessage}
+              onReviewLeave={reviewLeaveRequest}
               onReset={resetDemo}
               actionPending={actionPending}
             />
@@ -401,6 +432,7 @@ export default function DemoApp() {
               state={demoState}
               activeModule={bossModule}
               onModuleChange={setBossModule}
+              onOpenBranch={openBranch}
               onReset={resetDemo}
               actionPending={actionPending}
             />
@@ -465,6 +497,7 @@ function WorkerSurface({
   const isConfirming = caseState === 'confirming';
   const isOpen = caseState === 'open';
   const isResolved = caseState === 'resolved';
+  const nextWorkerShift = state?.shared.planning.find((shift) => shift.workerId === 'worker-mila');
 
   return (
     <>
@@ -532,7 +565,7 @@ function WorkerSurface({
               </>
             ) : !isOpen && !isResolved ? (
               <>
-                <button className="button button-soft" type="button">{t('allClear')}</button>
+                <button className="button button-soft" type="button" onClick={() => nextWorkerShift && onAcknowledgePlanning(nextWorkerShift.id)} disabled={!nextWorkerShift || actionPending === 'planning'}>{t('allClear')}</button>
                 <button className="button button-attention" type="button" onClick={onTransportProblem}>{t('transportProblem')}</button>
                 <button className="button button-ghost" type="button" onClick={onContact}>{t('humanHelp')}</button>
               </>
@@ -571,7 +604,7 @@ function WorkerSupport({state, onSendMessage, onAcknowledgePlanning, onContact, 
     void onSendMessage({body: draft, actor: 'worker', recipient: 'Anna Nowak', recipientRole: 'coordinator'});
     setDraft('');
   };
-  return <section className="worker-support-grid"><div className="worker-support-card"><div className="worker-support-heading"><div><span className="eyebrow">PLANNING</span><h2>Your next assignments</h2></div><span className="worker-read-only">Preview</span></div><div className="worker-next-shift"><strong>{nextShift.dateLabel}</strong><b>{nextShift.start}–{nextShift.end}</b><span>{nextShift.client} · {nextShift.location}</span><small>{nextShift.transport}</small></div>{nextShift.acknowledged ? <div className="worker-confirmed"><StatusDot tone="mint" /> You acknowledged this assignment</div> : <button className="button button-primary" type="button" onClick={() => onAcknowledgePlanning(nextShift.id)} disabled={actionPending === 'planning'}>I understand this planning</button>}</div><div className="worker-support-card"><div className="worker-support-heading"><div><span className="eyebrow">MESSENGER</span><h2>Anna · your coordinator</h2></div><span className="active-pill"><StatusDot /> Online</span></div><div className="worker-mini-messages">{messages.map((message) => <div className={message.senderRole === 'worker' ? 'worker-mini-message worker-mini-message-mine' : 'worker-mini-message'} key={message.id}><small>{message.sender} · {message.time}</small><span>{message.body}</span></div>)}</div><form className="worker-message-form" onSubmit={submit}><input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Write to Anna…" aria-label="Write to your coordinator" /><button className="button button-primary" type="submit" disabled={actionPending === 'message'}>Send</button></form><button className="button button-ghost worker-human-button" type="button" onClick={onContact}>Contact a human</button></div><div className="worker-support-card worker-numbers-card"><div className="worker-support-heading"><div><span className="eyebrow">IMPORTANT NUMBERS</span><h2>Help when you need it</h2></div><span className="worker-read-only">Always visible</span></div><div className="worker-number-list">{state.shared.importantNumbers.slice(0, 4).map((number) => <a href={`tel:${number.number.replace(/[^+\d]/g, '')}`} key={number.id}><span className={`worker-number-icon worker-number-icon-${number.tone}`}>☎</span><span><strong>{number.label}</strong><b>{number.number}</b><small>{number.availability}</small></span></a>)}</div></div></section>;
+  return <section className="worker-support-grid"><div className="worker-support-card"><div className="worker-support-heading"><div><span className="eyebrow">PLANNING</span><h2>Your next assignments</h2></div><span className="worker-read-only">Preview</span></div><div className="worker-next-shift"><strong>{nextShift.dateLabel}</strong><b>{nextShift.start}–{nextShift.end}</b><span>{nextShift.client} · {nextShift.location}</span><small>{nextShift.transport}</small></div>{nextShift.acknowledged ? <div className="worker-confirmed"><StatusDot tone="mint" /> You acknowledged this assignment</div> : <button className="button button-primary" type="button" onClick={() => onAcknowledgePlanning(nextShift.id)} disabled={actionPending === 'planning'}>I understand this planning</button>}</div><div className="worker-support-card" id="worker-messenger"><div className="worker-support-heading"><div><span className="eyebrow">MESSENGER</span><h2>Anna · your coordinator</h2></div><span className="active-pill"><StatusDot /> Online</span></div><div className="worker-mini-messages">{messages.map((message) => <div className={message.senderRole === 'worker' ? 'worker-mini-message worker-mini-message-mine' : 'worker-mini-message'} key={message.id}><small>{message.sender} · {message.time}</small><span>{message.body}</span></div>)}</div><form className="worker-message-form" onSubmit={submit}><input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Write to Anna…" aria-label="Write to your coordinator" /><button className="button button-primary" type="submit" disabled={actionPending === 'message'}>Send</button></form><button className="button button-ghost worker-human-button" type="button" onClick={onContact}>Contact a human</button></div><div className="worker-support-card worker-numbers-card"><div className="worker-support-heading"><div><span className="eyebrow">IMPORTANT NUMBERS</span><h2>Help when you need it</h2></div><span className="worker-read-only">Always visible</span></div><div className="worker-number-list">{state.shared.importantNumbers.slice(0, 4).map((number) => <a href={`tel:${number.number.replace(/[^+\d]/g, '')}`} key={number.id}><span className={`worker-number-icon worker-number-icon-${number.tone}`}>☎</span><span><strong>{number.label}</strong><b>{number.number}</b><small>{number.availability}</small></span></a>)}</div></div></section>;
 }
 
 function OperationsSurface({

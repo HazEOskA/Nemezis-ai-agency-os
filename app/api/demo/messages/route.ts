@@ -3,7 +3,7 @@ import type {MessageActor} from '../../../../lib/agency-domain';
 
 export const runtime = 'nodejs';
 
-const allowedActors: MessageActor[] = ['worker', 'coordinator'];
+const allowedActors: MessageActor[] = ['worker', 'coordinator', 'hr', 'boss'];
 
 export async function POST(request: Request) {
   let body: unknown;

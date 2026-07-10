@@ -418,6 +418,7 @@ button.hr-table-row { width: 100%; border-right: 0; border-bottom: 0; border-lef
 .hr-message-detail-head h2 { margin: 10px 0 8px; font-size: 22px; letter-spacing: -.03em; }
 .hr-message-detail-head p { margin: 0; color: #8498b5; font-size: 11px; }
 .hr-message-body { margin: 28px 0; color: #c6d4e8; font-size: 14px; line-height: 1.7; }
+.hr-message-input { min-width: 0; flex: 1; min-height: 42px; padding: 0 12px; border: 1px solid rgba(107,139,191,.32); border-radius: 10px; color: #e8f0fb; background: rgba(6,15,31,.78); font-size: 12px; }
 .hr-button-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .hr-button-row-small { gap: 5px; }
 .hr-approve-button, .hr-reject-button { min-height: 28px; padding: 5px 8px; border-radius: 8px; font-size: 10px; }
